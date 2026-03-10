@@ -1,27 +1,49 @@
-import cv2
-import os
+def run_preprocess():
 
-input_dir = "data/original"
-output_dir = "data/preprocessed"
+    import cv2
+    import os
 
-os.makedirs(output_dir, exist_ok=True)
+    input_dir = "data/original"
+    output_dir = "data/preprocessed"
 
-for filename in os.listdir(input_dir):
-    if filename.lower().endswith((".png", ".jpg", ".jpeg")):
-        input_path = os.path.join(input_dir, filename)
-        output_path = os.path.join(
-            output_dir, filename.rsplit(".", 1)[0] + "_pre.png"
-        )
+    os.makedirs(output_dir, exist_ok=True)
 
-        img = cv2.imread(input_path)
-        if img is None:
-            continue
+    for filename in os.listdir(input_dir):
 
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        if filename.lower().endswith((".png", ".jpg", ".jpeg")):
 
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        enhanced = clahe.apply(gray)
+            input_path = os.path.join(input_dir, filename)
 
-        cv2.imwrite(output_path, enhanced)
+            output_path = os.path.join(
+                output_dir,
+                filename.rsplit(".", 1)[0] + "_pre.png"
+            )
 
-print("Batch preprocessing completed!")
+            # Skip already processed
+            if os.path.exists(output_path):
+                print(f"Skipping {filename} (already preprocessed)")
+                continue
+
+            print(f"Processing {filename}")
+
+            img = cv2.imread(input_path)
+
+            if img is None:
+                continue
+
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+            clahe = cv2.createCLAHE(
+                clipLimit=2.0,
+                tileGridSize=(8, 8)
+            )
+
+            enhanced = clahe.apply(gray)
+
+            cv2.imwrite(output_path, enhanced)
+
+    print("Batch preprocessing completed!")
+
+
+if __name__ == "__main__":
+    run_preprocess()
