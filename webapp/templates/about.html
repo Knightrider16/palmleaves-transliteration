@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h1 class="page-title">About Kerala Archives</h1>
+
+  <div class="about-grid">
+    <div class="card">
+      <h2>About</h2>
+      <p>
+        Kerala Archives is the official repository of records of historical
+        value created and received by government and public institutions in
+        the state of Kerala.
+      </p>
+      <p>
+        Our mission is to preserve, protect and provide access to archival
+        records for research, education and administration. The Research
+        Portal opens this collection to scholars and the public, with tools
+        for searching documents, browsing visual galleries, and applying
+        modern OCR and transliteration techniques to manuscripts in
+        endangered scripts.
+      </p>
+      <h2 style="margin-top:18px;">Purpose of the portal</h2>
+      <ul>
+        <li>Centralised, login-protected access to digitised archives.</li>
+        <li>Keyword search across titles, descriptions and tags.</li>
+        <li>Project workspaces — including the Malayanma palm-leaf transliteration tool.</li>
+        <li>A growing visual gallery of archive holdings and digitisation work.</li>
+      </ul>
+    </div>
+    <div class="img"
+         style="background-image: url('{{ url_for('static', filename='samples/sample1.png') }}');"></div>
+  </div>
+{% endblock %}

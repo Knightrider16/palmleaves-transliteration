@@ -1,0 +1,223 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h1 class="page-title">Transliteration Project</h1>
+  <p class="page-sub">Upload an image of a palm-leaf manuscript (Malayanma script) to get a transliteration.</p>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="tool">Transliteration Tool</div>
+    <div class="tab" data-tab="samples">Samples</div>
+  </div>
+
+  <div id="tab-tool" class="tab-pane">
+    <div class="tool-grid">
+
+      <!-- Upload pane -->
+      <div class="tool-panel">
+        <h3>Upload Image</h3>
+        <label class="dropzone" id="dropzone" for="file-input">
+          <div class="hint">⬆ Drag and drop image here<br>or click to upload</div>
+          <div class="hint" style="font-size:11px;">Supported: JPG, PNG, JPEG</div>
+          <img id="preview" alt="preview" style="display:none;">
+        </label>
+        <input id="file-input" type="file" accept=".png,.jpg,.jpeg" style="display:none;">
+        <button class="ghost" id="clear-image" type="button" style="margin-top:8px; width:100%;">Clear image</button>
+      </div>
+
+      <!-- Model + run pane -->
+      <div class="tool-panel">
+        <h3>Select Model</h3>
+        <select id="model-select">
+          <option value="">— Select Model —</option>
+          {% for m in models %}
+            <option value="{{ m }}">{{ m }}</option>
+          {% endfor %}
+        </select>
+        {% if not models %}
+          <div class="flash" style="margin-top:10px;">
+            No trained models found under <code>models/&lt;arch&gt;/best.pth</code>.
+          </div>
+        {% endif %}
+        <button class="primary" id="run-btn" type="button" disabled>Run Model</button>
+
+        <div style="margin-top: 14px; font-size:12px; color:var(--muted);">
+          <strong>Tip:</strong> the <code>cnn_ctc</code> model was the strongest performer
+          on the project's benchmark.
+        </div>
+
+        <div id="status-box" style="margin-top: 14px; font-size: 13px; color: var(--ink-soft);"></div>
+      </div>
+
+      <!-- Output pane -->
+      <div class="tool-panel">
+        <h3>Result</h3>
+        <div class="output-card muted" id="output">
+          Upload a manuscript image and choose a model to see the transliteration here.
+        </div>
+        <button class="ghost" id="clear-output" type="button" style="margin-top:8px;">Clear</button>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="tab-samples" class="tab-pane" style="display:none;">
+    <div class="tool-panel">
+      <h3>Manuscript Samples</h3>
+      {% if samples %}
+        <div class="samples">
+          {% for s in samples %}
+            <img src="{{ url_for('static', filename='samples/' ~ s) }}"
+                 data-sample="{{ s }}" alt="{{ s }}" title="{{ s }}">
+          {% endfor %}
+        </div>
+        <div style="margin-top:10px; font-size:12px; color:var(--muted);">
+          Click a sample to load it into the tool.
+        </div>
+      {% else %}
+        <div style="color:var(--muted);">
+          No samples available.
+          Drop a few palm-leaf images into <code>webapp/static/samples/</code>.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const dz       = $('dropzone');
+  const fileIn   = $('file-input');
+  const preview  = $('preview');
+  const modelSel = $('model-select');
+  const runBtn   = $('run-btn');
+  const output   = $('output');
+  const status   = $('status-box');
+  const clearImg = $('clear-image');
+  const clearOut = $('clear-output');
+
+  let pendingFile = null;
+  let pendingSample = null;
+
+  function refreshRun() {
+    runBtn.disabled = !modelSel.value || (!pendingFile && !pendingSample);
+  }
+
+  function showPreview(src) {
+    preview.src = src;
+    preview.style.display = 'block';
+    dz.classList.add('has-file');
+    Array.from(dz.querySelectorAll('.hint')).forEach(el => el.style.display = 'none');
+  }
+  function hidePreview() {
+    preview.removeAttribute('src');
+    preview.style.display = 'none';
+    dz.classList.remove('has-file');
+    Array.from(dz.querySelectorAll('.hint')).forEach(el => el.style.display = '');
+  }
+
+  dz.addEventListener('click', (e) => {
+    if (e.target.tagName === 'IMG') return;
+    fileIn.click();
+  });
+  dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.style.borderColor = '#6b4a2b'; });
+  dz.addEventListener('dragleave', () => { dz.style.borderColor = ''; });
+  dz.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dz.style.borderColor = '';
+    const f = e.dataTransfer.files[0];
+    if (f) handleFile(f);
+  });
+  fileIn.addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    if (f) handleFile(f);
+  });
+
+  function handleFile(f) {
+    pendingFile = f;
+    pendingSample = null;
+    Array.from(document.querySelectorAll('.samples img')).forEach(i => i.classList.remove('selected'));
+    showPreview(URL.createObjectURL(f));
+    refreshRun();
+  }
+
+  modelSel.addEventListener('change', refreshRun);
+
+  clearImg.addEventListener('click', () => {
+    pendingFile = null; pendingSample = null;
+    fileIn.value = '';
+    hidePreview();
+    Array.from(document.querySelectorAll('.samples img')).forEach(i => i.classList.remove('selected'));
+    refreshRun();
+  });
+
+  clearOut.addEventListener('click', () => {
+    output.classList.add('muted');
+    output.textContent = 'Cleared. Upload a manuscript image and choose a model.';
+  });
+
+  // Sample selection
+  document.querySelectorAll('.samples img').forEach(img => {
+    img.addEventListener('click', () => {
+      document.querySelectorAll('.samples img').forEach(i => i.classList.remove('selected'));
+      img.classList.add('selected');
+      pendingSample = img.dataset.sample;
+      pendingFile = null;
+      fileIn.value = '';
+      showPreview(img.src);
+      refreshRun();
+      // Switch to tool tab
+      document.querySelector('.tab[data-tab=tool]').click();
+    });
+  });
+
+  // Tabs
+  document.querySelectorAll('.tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      const which = t.dataset.tab;
+      document.getElementById('tab-tool').style.display    = which === 'tool'    ? '' : 'none';
+      document.getElementById('tab-samples').style.display = which === 'samples' ? '' : 'none';
+    });
+  });
+
+  // Run
+  runBtn.addEventListener('click', async () => {
+    if (runBtn.disabled) return;
+    runBtn.disabled = true;
+    status.innerHTML = '<span class="spinner"></span>Running model — this can take a few seconds…';
+    output.classList.add('muted', 'loading');
+    output.innerHTML = '<span class="spinner"></span> Working…';
+
+    const fd = new FormData();
+    fd.append('model', modelSel.value);
+    if (pendingFile)   fd.append('image',  pendingFile);
+    if (pendingSample) fd.append('sample', pendingSample);
+
+    try {
+      const res = await fetch('{{ url_for("api_transliterate") }}', { method: 'POST', body: fd });
+      const data = await res.json();
+      output.classList.remove('loading');
+      if (!res.ok) {
+        output.textContent = data.error || 'Inference failed.';
+        status.textContent = 'Failed.';
+      } else {
+        output.classList.remove('muted');
+        output.textContent = data.text || '(no characters detected)';
+        status.textContent = `Model: ${data.model} · ${data.lines.length} line(s)`;
+      }
+    } catch (e) {
+      output.classList.remove('loading');
+      output.textContent = 'Request failed: ' + e;
+      status.textContent = 'Network error.';
+    } finally {
+      refreshRun();
+    }
+  });
+
+  refreshRun();
+})();
+</script>
+{% endblock %}

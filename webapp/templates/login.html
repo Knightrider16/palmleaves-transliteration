@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login — Kerala Archives Research Portal</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<div class="login-shell">
+  <div class="login-card">
+    <div class="login-emblem">KA</div>
+    <h1 class="login-title">KERALA ARCHIVES</h1>
+    <div class="login-sub">RESEARCH PORTAL</div>
+    <div style="font-size:13px; color:var(--muted); margin-bottom:18px;">Login to continue</div>
+
+    {% if error %}
+      <div class="login-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" autocomplete="off">
+      <label class="sr" for="u">Username</label>
+      <div class="field">
+        <span class="ico">👤</span>
+        <input id="u" name="username" type="text" placeholder="Username" required autofocus>
+      </div>
+
+      <label class="sr" for="p">Password</label>
+      <div class="field">
+        <span class="ico">🔒</span>
+        <input id="p" name="password" type="password" placeholder="Password" required>
+      </div>
+
+      <button type="submit">LOGIN</button>
+    </form>
+
+    <div class="login-hint">
+      Demo credentials: <strong>researcher</strong> / <strong>archives2026</strong>
+    </div>
+  </div>
+</div>
+</body>
+</html>

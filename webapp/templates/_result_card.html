@@ -1,0 +1,25 @@
+{# Reusable archive card macro. Usage: {{ result_card(r, idx, tokens) }} #}
+{% macro result_card(r, idx=0, tokens=None) %}
+<a class="result-card" href="{{ url_for('archive_detail', archive_id=r.id) }}">
+  <div class="thumb"
+       style="background-image: url('{{ url_for('static', filename='samples/sample' ~ ((idx % 4) + 1) ~ '.png') }}');"></div>
+  <div>
+    <h3>
+      {{ r.title | highlight(tokens) }}
+      {% if r.year %}<span class="year-chip">{{ r.year }}</span>{% endif %}
+      {% if r.score is defined %}
+        <span class="score-chip" title="Semantic similarity (0–1)">
+          ◇ {{ '%.2f' | format(r.score) }}
+        </span>
+      {% endif %}
+    </h3>
+    <p>{{ r.description | highlight(tokens) }}</p>
+    <div class="tags">
+      {% for t in r.tags %}<span class="tag">{{ t }}</span>{% endfor %}
+    </div>
+  </div>
+  <div class="status {{ 'ok' if r.available else 'no' }}">
+    <span class="status-dot"></span>{{ 'Available' if r.available else 'Restricted' }}
+  </div>
+</a>
+{% endmacro %}

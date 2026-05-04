@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h1 class="page-title">Gallery</h1>
+  <p class="page-sub">Explore images from the archives.</p>
+
+  {% if items %}
+    <div class="gallery-grid">
+      {% for f in items %}
+        <div class="cell" style="background-image: url('{{ url_for('static', filename='gallery/' ~ f) }}');"></div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div style="background:var(--paper); border:1px solid var(--line); padding:24px; border-radius:6px; color:var(--muted);">
+      No gallery items yet. Drop images into <code>webapp/static/gallery/</code> and refresh.
+    </div>
+  {% endif %}
+{% endblock %}

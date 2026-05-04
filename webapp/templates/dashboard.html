@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block content %}
+  <div class="hero">
+    <div class="hero-text">
+      <span class="ornament">❦</span>
+      <h1 class="page-title">Welcome, {{ session.user|capitalize }}</h1>
+      <p class="page-sub">Explore, discover and contribute to our archival heritage.</p>
+    </div>
+    <div class="hero-leaf" aria-hidden="true">📜</div>
+  </div>
+
+  {% if stats %}
+    <div class="stat-band">
+      <div class="stat">
+        <div class="stat-num">{{ stats.total }}</div>
+        <div class="stat-label">Records</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">{{ stats.available }}</div>
+        <div class="stat-label">Available</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">{% if stats.year_min %}{{ stats.year_min }}–{{ stats.year_max }}{% else %}—{% endif %}</div>
+        <div class="stat-label">Year range</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">{{ stats.messages }}</div>
+        <div class="stat-label">Messages</div>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="tiles">
+    <a class="tile" href="{{ url_for('search') }}">
+      <div class="icon">🔍</div>
+      <h3>Search Archives</h3>
+      <p>Search documents in the archives.</p>
+      <div class="go">Go to Search →</div>
+    </a>
+    <a class="tile" href="{{ url_for('projects') }}">
+      <div class="icon">📁</div>
+      <h3>Projects</h3>
+      <p>View and access ongoing projects.</p>
+      <div class="go">Go to Projects →</div>
+    </a>
+    <a class="tile" href="{{ url_for('gallery') }}">
+      <div class="icon">🖼️</div>
+      <h3>Gallery</h3>
+      <p>Explore archive images and collections.</p>
+      <div class="go">View Gallery →</div>
+    </a>
+    <a class="tile" href="{{ url_for('about') }}">
+      <div class="icon">ⓘ</div>
+      <h3>About Us</h3>
+      <p>Learn more about the archives and portal.</p>
+      <div class="go">Learn More →</div>
+    </a>
+  </div>
+
+  <div class="section-head">
+    <h2><span class="ornament-small">❦</span>Recent Additions</h2>
+    <a href="{{ url_for('search') }}">View All →</a>
+  </div>
+  <div class="recent-grid">
+    {% for r in recent %}
+      <a class="recent-card" href="{{ url_for('search', q=r.title.split(' ')[0]) }}">
+        <div class="thumb"
+             style="background-image: url('{{ url_for('static', filename='samples/sample' ~ ((loop.index0 % 4) + 1) ~ '.png') }}');">
+          <div class="thumb-overlay"></div>
+        </div>
+        <div class="meta">
+          <strong>{{ r.title }}</strong><br>
+          {% if r.year %}<span class="year-chip small">{{ r.year }}</span>{% endif %}
+        </div>
+      </a>
+    {% endfor %}
+  </div>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h1 class="page-title">Ongoing Projects</h1>
+  <p class="page-sub">Click a project to open its tools.</p>
+
+  <div class="tiles" style="grid-template-columns: repeat(2, minmax(240px, 360px));">
+    <a class="tile" href="{{ url_for('transliteration') }}">
+      <div class="icon">📜</div>
+      <h3>Transliteration Project</h3>
+      <p>Palm-leaf manuscripts in the Malayanma script — upload a manuscript image and get a transliterated reading.</p>
+      <div class="go">Open Tool →</div>
+    </a>
+  </div>
+{% endblock %}

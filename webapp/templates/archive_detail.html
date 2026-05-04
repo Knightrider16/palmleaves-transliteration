@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% from '_result_card.html' import result_card %}
+{% block content %}
+  <div class="detail-back">
+    <a href="{{ url_for('search') }}">← Back to search</a>
+  </div>
+
+  <div class="detail-grid">
+    <div class="detail-cover"
+         style="background-image: url('{{ url_for('static', filename='samples/sample' ~ cover_idx ~ '.png') }}');">
+    </div>
+
+    <div class="detail-body">
+      <div class="page-head">
+        <span class="ornament">❦</span>
+        <h1 class="page-title">{{ a.title }}</h1>
+      </div>
+
+      <div class="detail-meta">
+        {% if a.year %}<span class="year-chip">{{ a.year }}</span>{% endif %}
+        <span class="status {{ 'ok' if a.available else 'no' }}">
+          <span class="status-dot"></span>{{ 'Available' if a.available else 'Restricted' }}
+        </span>
+      </div>
+
+      <div class="detail-section">
+        <h3 class="detail-h">Description</h3>
+        <p class="detail-desc">{{ a.description or '(no description)' }}</p>
+      </div>
+
+      {% if a.tags %}
+        <div class="detail-section">
+          <h3 class="detail-h">Tags</h3>
+          <div class="tags">
+            {% for t in a.tags %}<a class="tag" href="{{ url_for('search', q=t) }}">{{ t }}</a>{% endfor %}
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="detail-section detail-actions">
+        <a class="btn-ghost" href="{{ url_for('search') }}">Continue browsing</a>
+        <a class="btn-ghost" href="{{ url_for('projects') }}">Open transliteration tool →</a>
+      </div>
+    </div>
+  </div>
+
+  {% if related %}
+    <div class="results-section">
+      <h2 class="results-h">🔗 Related entries
+        <span class="results-h-sub">— similar archives by AI similarity</span>
+      </h2>
+      {% for r in related %}
+        {{ result_card(r, loop.index0) }}
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endblock %}

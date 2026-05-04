@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% from '_result_card.html' import result_card %}
+{% block content %}
+  <div class="page-head">
+    <span class="ornament">❦</span>
+    <h1 class="page-title">Search Archives</h1>
+  </div>
+  <p class="page-sub">Search across titles, descriptions, years and tags. Related entries appear automatically.</p>
+
+  <form class="search-bar" method="get" action="{{ url_for('search') }}" autocomplete="off">
+    <span class="search-ico">🔍</span>
+    <input type="text" id="search-input" name="q" value="{{ q }}"
+           placeholder="e.g. temple, palm-leaf, revenue, manuscript…" autofocus>
+    <button type="submit">Search</button>
+    <div class="suggest-pop" id="suggest-pop" hidden></div>
+  </form>
+
+  {% if q %}
+    {% set total = result.direct|length + result.related|length %}
+    <div class="search-meta">
+      Results for <strong>"{{ q }}"</strong>
+      — <span class="count-pill">{{ result.direct|length }} direct</span>
+      {% if result.related %}
+        <span class="count-pill alt">{{ result.related|length }} related</span>
+      {% endif %}
+      {% if result.expanded %}
+        <span class="search-expanded">
+          also looked at:
+          {% for t in result.expanded %}<span class="tag tag-soft">{{ t }}</span>{% endfor %}
+        </span>
+      {% endif %}
+    </div>
+
+    {% if result.direct %}
+      <div class="results-section">
+        <h2 class="results-h">📌 Direct matches</h2>
+        {% for r in result.direct %}
+          {{ result_card(r, loop.index0, result.tokens + result.expanded) }}
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if result.related %}
+      <div class="results-section">
+        <h2 class="results-h">
+          🔗 Related entries
+          <span class="results-h-sub">
+            {% if result.related_mode == 'semantic' %}
+              — found by semantic similarity (AI embedding model)
+            {% else %}
+              — share tags with your matches
+            {% endif %}
+          </span>
+        </h2>
+        {% for r in result.related %}
+          {{ result_card(r, loop.index0, result.tokens + result.expanded) }}
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if total == 0 %}
+      <div class="empty-state">
+        <div class="empty-ico">🔍</div>
+        <strong>No matching records.</strong>
+        <p>Try a broader keyword like <em>temple</em>, <em>palm-leaf</em>, or <em>revenue</em>.</p>
+      </div>
+    {% endif %}
+  {% else %}
+    <div class="search-meta">Showing recent additions. Type a keyword to search.</div>
+    <div class="results-section">
+      {% for r in recent %}
+        {{ result_card(r, loop.index0) }}
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const input = document.getElementById('search-input');
+  const pop   = document.getElementById('suggest-pop');
+  if (!input || !pop) return;
+
+  let timer = null;
+  let activeIdx = -1;
+  let items = [];
+
+  function render(list) {
+    items = list || [];
+    if (!items.length) { pop.hidden = true; pop.innerHTML = ''; activeIdx = -1; return; }
+    pop.innerHTML = items.map((s, i) =>
+      `<a class="suggest-item" data-i="${i}" href="/archive/${s.id}">
+         <span class="suggest-title">${escapeHtml(s.title)}</span>
+         ${s.year ? `<span class="suggest-year">${s.year}</span>` : ''}
+         <span class="suggest-tags">${(s.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</span>
+       </a>`
+    ).join('');
+    pop.hidden = false;
+    activeIdx = -1;
+  }
+  function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  function fetchSuggest(q) {
+    if (q.length < 2) { render([]); return; }
+    fetch('{{ url_for("api_search_suggest") }}?q=' + encodeURIComponent(q))
+      .then(r => r.json())
+      .then(data => render(data.suggestions || []))
+      .catch(() => render([]));
+  }
+
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = input.value.trim();
+    timer = setTimeout(() => fetchSuggest(q), 120);
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (pop.hidden) return;
+    const n = items.length;
+    if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = (activeIdx + 1) % n; updateActive(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = (activeIdx - 1 + n) % n; updateActive(); }
+    else if (e.key === 'Enter' && activeIdx >= 0) { e.preventDefault(); window.location = `/archive/${items[activeIdx].id}`; }
+    else if (e.key === 'Escape') { pop.hidden = true; activeIdx = -1; }
+  });
+  function updateActive() {
+    pop.querySelectorAll('.suggest-item').forEach((el, i) =>
+      el.classList.toggle('active', i === activeIdx));
+  }
+
+  document.addEventListener('click', (e) => {
+    if (!pop.contains(e.target) && e.target !== input) { pop.hidden = true; }
+  });
+  input.addEventListener('focus', () => {
+    const q = input.value.trim();
+    if (q.length >= 2) fetchSuggest(q);
+  });
+})();
+</script>
+{% endblock %}
