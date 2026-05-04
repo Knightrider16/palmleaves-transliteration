@@ -1,181 +1,333 @@
+"""
+Script A (v4) — Palm Leaf Segmentation for Horizontal Strips
+=============================================================
+Handles wide horizontal manuscript strips (e.g. 7904x468px).
+Detects lines by row projection across the full image width,
+with multi-scale smoothing to handle paragraph column gaps.
+
+Key improvements:
+  - No column splitting — treats full strip as one unit
+  - Multi-scale row projection finds lines across all columns
+  - Much stricter punch hole detection (3 tighter conditions)
+  - Characters saved as: {image_id}_line{N:02d}_char{N:03d}.png
+  - character_index.csv for Script B
+
+CSV format this produces index for:
+    image, line, confidence, transcript
+    1A1_pre_x2_mask, 1, high, ka/la/...
+
+Usage:
+    python script_A_segmentation.py
+
+Inputs:  data/masks_clean_upscaled/
+Outputs: data/characters_named/
+         data/characters_named/character_index.csv
+"""
+
 import cv2
 import numpy as np
 import os
+import csv
 
-input_folder = "data/masks_clean_upscaled"
-output_folder = "data/characters"
-os.makedirs(output_folder, exist_ok=True)
+INPUT_FOLDER  = "data/masks_clean_upscaled"
+OUTPUT_FOLDER = "data/characters_named"
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-char_id = 0
+
+# ─────────────────────────────────────────────────────────────
+# PREPROCESSING
+# ─────────────────────────────────────────────────────────────
 
 def sauvola_threshold(gray, window_size=25, k=0.5, R=128):
-    gray_f = gray.astype(np.float64)
-    mean = cv2.boxFilter(gray_f, -1, (window_size, window_size))
+    gray_f  = gray.astype(np.float64)
+    mean    = cv2.boxFilter(gray_f,    -1, (window_size, window_size))
     mean_sq = cv2.boxFilter(gray_f**2, -1, (window_size, window_size))
-    std = np.sqrt(np.abs(mean_sq - mean**2))
-    threshold = mean * (1 + k * (std / R - 1))
-    binary = (gray_f < threshold).astype(np.uint8) * 255
+    std     = np.sqrt(np.abs(mean_sq - mean**2))
+    return (gray_f < mean * (1 + k * (std / R - 1))).astype(np.uint8) * 255
+
+
+def remove_horizontal_lines(binary, w_img):
+    """Two-pass: removes long fibres then medium fragments."""
+    for h_len in [max(80, w_img // 10), max(40, w_img // 20)]:
+        k = cv2.getStructuringElement(cv2.MORPH_RECT, (h_len, 1))
+        binary = cv2.subtract(binary,
+                    cv2.morphologyEx(binary, cv2.MORPH_OPEN, k))
     return binary
 
-def detect_and_remove_punch_holes(binary, num_holes=2, min_area=200):
-    """
-    Find large near-circular blobs = punch holes.
-    Returns cleaned binary and the hole bounding boxes (for debug).
-    """
-    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    contours_sorted = sorted(contours, key=cv2.contourArea, reverse=True)
 
-    mask = np.zeros_like(binary)
+def remove_specks(binary, min_area=60):
+    """Delete connected components smaller than min_area."""
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(binary)
+    clean = np.zeros_like(binary)
+    for i in range(1, n):
+        if stats[i, cv2.CC_STAT_AREA] >= min_area:
+            clean[labels == i] = 255
+    return clean
+
+
+def remove_punch_holes(binary, num_holes=2):
+    """
+    Strict three-condition punch hole removal.
+    All three must be satisfied simultaneously:
+
+    1. Large area  — must be bigger than any realistic character
+       (uses adaptive threshold: 1.5% of image area)
+    2. High circularity  — threshold raised to 0.78
+       (characters rarely exceed 0.65 even when circular)
+    3. Strong hollow interior — inner void > 35% of parent area
+       (characters have strokes, not empty rings)
+
+    Also: dilates removal mask by 9px to erase halo.
+    """
+    h_img, w_img = binary.shape[:2]
+    # Punch holes must be at least 1.5% of image area
+    min_punch_area = max(800, int(h_img * w_img * 0.015))
+
+    contours, _ = cv2.findContours(
+        binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours = sorted(contours, key=cv2.contourArea, reverse=True)
+
+    mask        = np.zeros_like(binary)
     holes_found = 0
-    epsilon = 0.4
 
-    for cnt in contours_sorted:
+    for cnt in contours:
         area = cv2.contourArea(cnt)
-        if area < min_area:
+
+        # Condition 1 — large enough
+        if area < min_punch_area:
+            break   # sorted by area, no point continuing
+
+        # Condition 2 — roughly square bounding box
+        _, _, w, h = cv2.boundingRect(cnt)
+        aspect = w / float(h) if h > 0 else 0
+        if not (0.65 < aspect < 1.35):
+            continue
+
+        # Condition 2b — high circularity
+        perimeter = cv2.arcLength(cnt, True)
+        if perimeter == 0:
+            continue
+        circularity = (4 * np.pi * area) / (perimeter ** 2)
+        if circularity < 0.78:           # raised from 0.60
+            continue
+
+        # Condition 3 — hollow interior (the actual hole)
+        c_all, hier = cv2.findContours(
+            binary, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+        has_strong_hole = False
+        if hier is not None:
+            for i, he in enumerate(hier[0]):
+                if he[3] >= 0:           # has a parent = inner contour
+                    hole_area   = cv2.contourArea(c_all[i])
+                    parent_area = cv2.contourArea(c_all[he[3]])
+                    if parent_area > 0 and hole_area / parent_area > 0.35:
+                        has_strong_hole = True
+                        break
+        if not has_strong_hole:
+            continue
+
+        cv2.drawContours(mask, [cnt], -1, 255, -1)
+        holes_found += 1
+        if holes_found >= num_holes:
             break
-        x, y, w, h = cv2.boundingRect(cnt)
-        aspect_ratio = w / float(h) if h > 0 else 0
-        if (1 - epsilon) < aspect_ratio < (1 + epsilon):
-            # Dilate the mask region to erase halo around hole too
-            cv2.drawContours(mask, [cnt], -1, 255, -1)
-            holes_found += 1
-            if holes_found >= num_holes:
-                break
 
-    cleaned = cv2.bitwise_xor(binary, mask)
-    return cleaned
+    # Dilate mask to erase ink halo around each hole
+    kernel  = np.ones((9, 9), np.uint8)
+    dilated = cv2.dilate(mask, kernel, iterations=1)
+    return cv2.bitwise_and(binary, cv2.bitwise_not(dilated))
 
-def crop_to_content(binary, padding=10):
-    """
-    Crop away the black border edges of the leaf (tapered ends).
-    Uses the bounding box of all foreground pixels.
-    """
-    coords = cv2.findNonZero(binary)
-    if coords is None:
-        return binary
-    x, y, w, h = cv2.boundingRect(coords)
-    x = max(0, x - padding)
-    y = max(0, y - padding)
-    w = min(binary.shape[1] - x, w + 2 * padding)
-    h = min(binary.shape[0] - y, h + 2 * padding)
-    return binary[y:y+h, x:x+w]
 
-def is_valid_character(char_img, min_ratio=0.08):
-    """0/1 ratio: reject blobs that are mostly empty (noise)"""
-    black = np.sum(char_img == 0)
-    white = np.sum(char_img == 255)
-    if white == 0:
-        return False
-    return (black / float(white)) >= min_ratio
-
-for img_name in sorted(os.listdir(input_folder)):
-
-    img_path = os.path.join(input_folder, img_name)
-    img = cv2.imread(img_path)
-
-    if img is None:
-        continue
-
+def preprocess(img):
     h_img, w_img = img.shape[:2]
-
-    # --------------------------------------------------
-    # 1. Grayscale
-    # --------------------------------------------------
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    # --------------------------------------------------
-    # 2. Check if image is inverted (white-on-black)
-    #    Mean < 127 means mostly dark = inverted
-    # --------------------------------------------------
-    mean_val = np.mean(gray)
-    if mean_val < 127:
-        gray = cv2.bitwise_not(gray)  # flip to black-on-white
-
-    # --------------------------------------------------
-    # 3. Denoise
-    # --------------------------------------------------
-    denoised = cv2.fastNlMeansDenoising(gray, h=10,
-                                         templateWindowSize=7,
-                                         searchWindowSize=21)
+    if np.mean(gray) < 127:
+        gray = cv2.bitwise_not(gray)
+    denoised = cv2.fastNlMeansDenoising(
+        gray, h=12, templateWindowSize=7, searchWindowSize=21)
     denoised = cv2.medianBlur(denoised, 3)
+    binary   = sauvola_threshold(denoised)
+    binary   = remove_punch_holes(binary)
+    binary   = remove_horizontal_lines(binary, w_img)
+    binary   = remove_specks(binary, min_area=60)
+    binary   = cv2.morphologyEx(
+        binary, cv2.MORPH_CLOSE, np.ones((2, 2), np.uint8))
+    return binary
 
-    # --------------------------------------------------
-    # 4. Sauvola adaptive thresholding
-    # --------------------------------------------------
-    binary = sauvola_threshold(denoised, window_size=25, k=0.5)
 
-    # --------------------------------------------------
-    # 5. Crop content (remove tapered black leaf edges)
-    # --------------------------------------------------
-    binary = crop_to_content(binary, padding=5)
+# ─────────────────────────────────────────────────────────────
+# LINE SEGMENTATION FOR WIDE HORIZONTAL STRIPS
+#
+# Problem: a 7904×468 strip has text lines stacked vertically,
+# but they span across multiple paragraph columns horizontally.
+# Standard row projection works but needs careful smoothing.
+#
+# Solution: use two-scale smoothing —
+#   - fine scale  (5px)  to find individual line peaks
+#   - coarse scale (25px) to handle column gaps without
+#     treating inter-column whitespace as line breaks
+# ─────────────────────────────────────────────────────────────
 
-    # --------------------------------------------------
-    # 6. Remove punch holes BEFORE anything else
-    # --------------------------------------------------
-    binary = detect_and_remove_punch_holes(binary, num_holes=2)
+def segment_lines_horizontal_strip(binary, min_line_height=12,
+                                    gap_thresh=0.03):
+    """
+    Row projection profile segmentation tuned for wide strips.
+    Uses coarse smoothing to bridge inter-column gaps vertically.
+    """
+    row_sums = np.sum(binary == 255, axis=1).astype(float)
 
-    # --------------------------------------------------
-    # 7. Remove horizontal lines (leaf fibres)
-    # --------------------------------------------------
-    h_kernel_len = max(60, w_img // 15)
-    kernel_h = cv2.getStructuringElement(cv2.MORPH_RECT, (h_kernel_len, 1))
-    horizontal = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel_h)
-    binary = cv2.subtract(binary, horizontal)
+    # Coarse smoothing — bridges small gaps within a line
+    kernel_coarse = np.ones(25) / 25
+    smoothed = np.convolve(row_sums, kernel_coarse, mode='same')
 
-    # --------------------------------------------------
-    # 8. Light closing to reconnect broken strokes
-    # --------------------------------------------------
-    kernel_small = np.ones((2, 2), np.uint8)
-    binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel_small)
+    peak = smoothed.max()
+    if peak == 0:
+        return [(0, binary.shape[0])]
 
-    # --------------------------------------------------
-    # 9. Connected components with dynamic thresholds
-    # --------------------------------------------------
-    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary)
+    threshold = peak * gap_thresh
+    in_line   = False
+    lines     = []
+    y_start   = 0
 
-    img_area = binary.shape[0] * binary.shape[1]
-    min_area = max(120, img_area // 6000)
-    max_dim = max(100, min(binary.shape[:2]) // 2)
+    for y, val in enumerate(smoothed):
+        if not in_line and val > threshold:
+            in_line = True
+            y_start = y
+        elif in_line and val <= threshold:
+            in_line = False
+            if y - y_start >= min_line_height:
+                lines.append((max(0, y_start - 3),
+                               min(binary.shape[0], y + 3)))
 
-    chars_this_image = []
+    if in_line and binary.shape[0] - y_start >= min_line_height:
+        lines.append((max(0, y_start - 3), binary.shape[0]))
 
-    for i in range(1, num_labels):
-        x = stats[i, cv2.CC_STAT_LEFT]
-        y = stats[i, cv2.CC_STAT_TOP]
-        w = stats[i, cv2.CC_STAT_WIDTH]
-        h = stats[i, cv2.CC_STAT_HEIGHT]
-        area = stats[i, cv2.CC_STAT_AREA]
+    return lines if lines else [(0, binary.shape[0])]
 
-        if area < min_area:
+
+# ─────────────────────────────────────────────────────────────
+# CHARACTER VALIDATION
+# ─────────────────────────────────────────────────────────────
+
+def solidity(char_img):
+    cnts, _ = cv2.findContours(
+        char_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not cnts:
+        return 0
+    cnt  = max(cnts, key=cv2.contourArea)
+    hull = cv2.contourArea(cv2.convexHull(cnt))
+    return cv2.contourArea(cnt) / hull if hull > 0 else 0
+
+
+def is_valid_character(char_img, w, h):
+    fill   = np.sum(char_img == 255) / float(w * h) if w * h > 0 else 0
+    if fill < 0.06:                         return False
+    aspect = w / float(h) if h > 0 else 0
+    if aspect > 5.0 or aspect < 0.15:      return False
+    if solidity(char_img) < 0.15:          return False
+    return True
+
+
+# ─────────────────────────────────────────────────────────────
+# MAIN LOOP
+# ─────────────────────────────────────────────────────────────
+
+def _run_main():
+    index_rows  = []
+    total_chars = 0
+
+    for img_name in sorted(os.listdir(INPUT_FOLDER)):
+        if not img_name.lower().endswith(
+                ('.png', '.jpg', '.jpeg', '.tif', '.tiff')):
             continue
-        if w < 10 or h < 10:
-            continue
-        if w > max_dim or h > max_dim:
-            continue
 
-        aspect_ratio = w / float(h)
-        if aspect_ratio > 6 or aspect_ratio < 0.1:
+        img = cv2.imread(os.path.join(INPUT_FOLDER, img_name))
+        if img is None:
+            print(f"  [skip] {img_name}")
             continue
 
-        char_img = binary[y:y+h, x:x+w]
-        if not is_valid_character(char_img, min_ratio=0.08):
-            continue
+        image_id     = os.path.splitext(img_name)[0]
+        h_img, w_img = img.shape[:2]
+        print(f"\nProcessing: {image_id}  ({w_img}×{h_img})")
 
-        chars_this_image.append((x, y, w, h, char_img))
+        binary = preprocess(img)
 
-    # Sort left to right (reading order)
-    chars_this_image.sort(key=lambda c: c[0])
+        # Line segmentation
+        lines = segment_lines_horizontal_strip(binary)
+        print(f"  Lines detected: {len(lines)}")
 
-    for (x, y, w, h, char_img) in chars_this_image:
-        size = max(w, h)
-        padded = np.zeros((size, size), dtype=np.uint8)
-        y_offset = (size - h) // 2
-        x_offset = (size - w) // 2
-        padded[y_offset:y_offset+h, x_offset:x_offset+w] = char_img
+        # Dynamic size thresholds based on image size
+        img_area = h_img * w_img
+        min_area = max(100, img_area // 60000)
+        max_dim  = max(100, h_img // 2)
 
-        char_path = os.path.join(output_folder, f"char_{char_id:06d}.png")
-        cv2.imwrite(char_path, padded)
-        char_id += 1
+        for line_idx, (y_start, y_end) in enumerate(lines):
+            line_num   = line_idx + 1
+            line_strip = binary[y_start:y_end, :]
 
-print("Segmentation completed!")
-print("Characters extracted:", char_id)
+            if line_strip.size == 0:
+                continue
+
+            n, _labels, stats, _ = cv2.connectedComponentsWithStats(line_strip)
+            chars_this_line = []
+
+            for i in range(1, n):
+                x    = stats[i, cv2.CC_STAT_LEFT]
+                y    = stats[i, cv2.CC_STAT_TOP]
+                w    = stats[i, cv2.CC_STAT_WIDTH]
+                h    = stats[i, cv2.CC_STAT_HEIGHT]
+                area = stats[i, cv2.CC_STAT_AREA]
+
+                if area < min_area:             continue
+                if w < 8 or h < 8:             continue
+                if w > max_dim or h > max_dim: continue
+
+                char_img = line_strip[y:y+h, x:x+w]
+                if not is_valid_character(char_img, w, h):
+                    continue
+
+                chars_this_line.append((x, y, w, h, char_img))
+
+            chars_this_line.sort(key=lambda c: c[0])   # left to right
+
+            for char_idx, (x, y, w, h, char_img) in enumerate(chars_this_line):
+                char_num = char_idx + 1
+                size     = max(w, h)
+                padded   = np.zeros((size, size), dtype=np.uint8)
+                padded[(size-h)//2:(size-h)//2+h,
+                       (size-w)//2:(size-w)//2+w] = char_img
+
+                filename = f"{image_id}_line{line_num:02d}_char{char_num:03d}.png"
+                cv2.imwrite(os.path.join(OUTPUT_FOLDER, filename), padded)
+
+                index_rows.append({
+                    "filename": filename,
+                    "image_id": image_id,
+                    "line_num": line_num,
+                    "char_num": char_num,
+                    "x": x,
+                    "y": y + y_start,
+                    "w": w,
+                    "h": h,
+                })
+                total_chars += 1
+
+        print(f"  Characters this image: "
+              f"{sum(1 for r in index_rows if r['image_id'] == image_id)}")
+        print(f"  Running total: {total_chars}")
+
+    # Save index
+    index_path = os.path.join(OUTPUT_FOLDER, "character_index.csv")
+    with open(index_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(
+            f, fieldnames=["filename","image_id","line_num","char_num",
+                            "x","y","w","h"])
+        writer.writeheader()
+        writer.writerows(index_rows)
+
+    print("\n" + "="*50)
+    print(f"Done. Total characters : {total_chars}")
+    print(f"Index saved to         : {index_path}")
+
+
+if __name__ == "__main__":
+    _run_main()

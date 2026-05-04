@@ -1,0 +1,10 @@
+{
+  "model": "conformer",
+  "params_M": 9.266566,
+  "type": "ctc",
+  "best_val_acc": 74.35897435897436,
+  "test_acc": 78.75667926495503,
+  "test_ter": 43.17737521178157,
+  "epochs": 50,
+  "batch": 32
+}

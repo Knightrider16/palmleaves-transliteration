@@ -1,0 +1,10 @@
+{
+  "model": "vit_ctc",
+  "params_M": 5.146424,
+  "type": "ctc",
+  "best_val_word_acc": 21.97070572569907,
+  "test_word_acc": 20.162291169451073,
+  "test_cer": 80.59810025905558,
+  "epochs": 50,
+  "batch": 64
+}

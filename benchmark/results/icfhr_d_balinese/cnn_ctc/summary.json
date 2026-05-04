@@ -1,0 +1,10 @@
+{
+  "model": "cnn_ctc",
+  "params_M": 9.249592,
+  "type": "ctc",
+  "best_val_word_acc": 52.99600532623169,
+  "test_word_acc": 50.720763723150355,
+  "test_cer": 23.989910466754534,
+  "epochs": 50,
+  "batch": 64
+}

@@ -1,0 +1,10 @@
+{
+  "model": "crnn_attn",
+  "params_M": 13.761928,
+  "type": "ar",
+  "best_val_acc": 86.66666666666667,
+  "test_acc": 87.99687214909423,
+  "test_ter": 12.003127850905773,
+  "epochs": 50,
+  "batch": 32
+}

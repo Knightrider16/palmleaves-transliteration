@@ -1,0 +1,7 @@
+model,type,params_M,greedy_word_acc,greedy_cer,beam10_word_acc,beam10_cer,greedy_seconds,beam_seconds
+cnn_ctc,ctc,9.25,50.72,23.99,1.58,101.25,26.4,74.4
+conformer,ctc,9.25,23.94,68.10,11.84,72.03,26.7,70.7
+crnn_attn,ar,13.68,23.97,78.63,23.97,78.63,28.3,27.8
+crnn_ctc,ctc,12.40,0.35,84.96,0.11,110.80,26.4,76.4
+trocr,ar,9.40,24.95,79.88,24.95,79.88,29.9,29.8
+vit_ctc,ctc,5.15,20.16,80.60,19.50,77.79,25.4,65.4

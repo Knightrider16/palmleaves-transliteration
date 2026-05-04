@@ -1,0 +1,10 @@
+{
+  "model": "vit_ctc",
+  "params_M": 5.16647,
+  "type": "ctc",
+  "best_val_acc": 74.1880341880342,
+  "test_acc": 76.0589078587254,
+  "test_ter": 54.90681610843217,
+  "epochs": 50,
+  "batch": 32
+}

@@ -30,8 +30,13 @@ SEGMENTS_DIR    = "data2/segments"         # segmented chars (per image/line)
 LABELED_DIR     = "data2/labeled"          # training dataset
 MODEL_PATH      = "models/palmleaf_cnn.pth"
 LABEL_MAP_PATH  = "models/label_map.json"
-TRANSCRIPT_CSV  = "data/labels/fixed.csv"
+TRANSCRIPT_CSV  = "data/labels/labels.csv"
 RESULTS_DIR     = "results"
+
+# NOTE: this script is the original per-character segmentation + CNN
+# pipeline.  It is preserved for reference but the active pipeline is
+# the CRNN/CTC line recognizer in crnn/.  Run crnn/train.py and
+# crnn/infer.py instead.
 
 for d in [SEGMENTS_DIR, LABELED_DIR, RESULTS_DIR,
           "models", "rejects/punchholes", "rejects/linenoise"]:
@@ -57,32 +62,23 @@ DIGRAPHS = sorted(set(DIGRAPHS), key=len, reverse=True)
 
 def tokenize(text):
     """
-    Split romanized transcript into phoneme tokens.
-    Handles digraphs, marks '?' as unknown.
-    Returns list of tokens.
+    Split a transcript into akshara tokens.
+
+    The CSV uses '/' as the canonical token separator (e.g. "ka/li/la").
+    '[unk]' / '?' are normalized to '?' for downstream code that expects
+    a single unknown sentinel.
     """
+    if not text or not isinstance(text, str):
+        return []
     tokens = []
-    text = text.lower().strip()
-    i = 0
-    while i < len(text):
-        c = text[i]
-        if c == ' ':
-            i += 1
+    for raw in text.split('/'):
+        t = raw.strip().lower()
+        if not t:
             continue
-        if c == '?':
+        if t in ('[unk]', '?'):
             tokens.append('?')
-            i += 1
-            continue
-        matched = False
-        for dg in DIGRAPHS:
-            if text[i:i+len(dg)] == dg:
-                tokens.append(dg)
-                i += len(dg)
-                matched = True
-                break
-        if not matched:
-            tokens.append(c)
-            i += 1
+        else:
+            tokens.append(t)
     return tokens
 
 

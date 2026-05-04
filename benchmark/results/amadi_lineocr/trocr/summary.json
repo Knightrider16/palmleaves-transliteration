@@ -1,0 +1,10 @@
+{
+  "model": "trocr",
+  "params_M": 9.436296,
+  "type": "ar",
+  "best_val_acc": 72.3076923076923,
+  "test_acc": 74.89899648116773,
+  "test_ter": 25.10100351883227,
+  "epochs": 50,
+  "batch": 32
+}

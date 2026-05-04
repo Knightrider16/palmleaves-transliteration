@@ -1,0 +1,10 @@
+{
+  "model": "trocr",
+  "params_M": 9.396282,
+  "type": "ar",
+  "best_val_word_acc": 26.098535286284953,
+  "test_word_acc": 24.954653937947494,
+  "test_cer": 79.87547152661001,
+  "epochs": 50,
+  "batch": 64
+}

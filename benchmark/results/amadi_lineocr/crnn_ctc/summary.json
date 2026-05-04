@@ -1,0 +1,10 @@
+{
+  "model": "crnn_ctc",
+  "params_M": 12.443526,
+  "type": "ctc",
+  "best_val_acc": 88.54700854700855,
+  "test_acc": 89.99087710152483,
+  "test_ter": 15.56105825622312,
+  "epochs": 50,
+  "batch": 32
+}
