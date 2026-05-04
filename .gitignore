@@ -1,5 +1,50 @@
+# ---- Python ----
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# ---- Virtual environments ----
+realesgran_venv/
+.venv/
+venv/
+env/
+
+# ---- Model checkpoints + caches ----
 *.pth
-/weights
+*.pt
+*.onnx
+*.ckpt
+.cache/
+
+# ---- Project data (large, regenerable, or not for source control) ----
 /data
 /data2
-rejects
+/weights
+/toy_data
+rejects/
+benchmark/amadi/
+benchmark/icfhr2018/
+
+# Pipeline / training intermediates
+RUN_STATE.json
+cluster_assignments*.csv
+/results
+
+# ---- Personal / IDE / OS ----
+.claude/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+
+# ---- Thesis source (kept out of code repo) ----
+report
+
+# ---- Webapp runtime ----
+/webapp/data/*.db
+/webapp/static/uploads/*
+!/webapp/static/uploads/.gitkeep
+/webapp/__pycache__
