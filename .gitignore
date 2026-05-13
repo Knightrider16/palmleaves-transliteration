@@ -26,6 +26,7 @@ env/
 rejects/
 benchmark/amadi/
 benchmark/icfhr2018/
+Transcribed documents/
 
 # Pipeline / training intermediates
 RUN_STATE.json

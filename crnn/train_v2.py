@@ -151,6 +151,11 @@ def main():
                     help="comma-separated list of index CSVs to concatenate")
     p.add_argument("--train-dir", default="data/synthetic/lines,data/synthetic/real_stitched_lines",
                     help="comma-separated dirs (must align with --train-csv)")
+    p.add_argument("--val-csv",   default="",
+                    help="optional explicit validation CSV; if absent we "
+                         "carve a slice off --train-csv with random_split")
+    p.add_argument("--val-dir",   default="",
+                    help="image directory paired with --val-csv")
     p.add_argument("--height",    type=int,   default=64)
     p.add_argument("--epochs",    type=int,   default=12)
     p.add_argument("--batch",     type=int,   default=16)
@@ -195,10 +200,19 @@ def main():
     n_total = len(full)
     print(f"Total training lines: {n_total}")
 
-    n_val = max(1, min(n_total - 1, max(50, n_total // 20)))
-    train, val = random_split(
-        full, [n_total - n_val, n_val],
-        generator=torch.Generator().manual_seed(args.seed))
+    if args.val_csv and args.val_dir and os.path.isfile(args.val_csv):
+        # Explicit, stable validation set.
+        val_ds = LineDataset(args.val_csv, args.val_dir, vocab=vocab,
+                              height=args.height, augment=False)
+        train = full
+        val   = val_ds
+        print(f"Using explicit val set: {args.val_csv} ({len(val)} lines)")
+    else:
+        n_val = max(1, min(n_total - 1, max(50, n_total // 20)))
+        train, val = random_split(
+            full, [n_total - n_val, n_val],
+            generator=torch.Generator().manual_seed(args.seed))
+        print(f"Auto val split: {len(val)} lines from training pool")
 
     # ---- Build model ----
     model = build(args.model, vocab=vocab).to(device)

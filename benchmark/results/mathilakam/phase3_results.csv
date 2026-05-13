@@ -1,0 +1,7 @@
+phase,arch,epochs,best_val_ter_pct,exit_code,notes
+3,cnn_ctc,50,87.29,0,best of phase 3
+3,crnn_ctc,50,88.32,0,
+3,conformer,50,89.69,0,flat / collapsed
+3,crnn_attn,1,327.49,interrupted,AR cold-start; run terminated
+3,vit_ctc,,,,not run (interrupted)
+3,trocr,,,,not run (interrupted)

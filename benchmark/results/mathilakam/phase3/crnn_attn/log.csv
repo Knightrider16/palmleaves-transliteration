@@ -1,0 +1,2 @@
+epoch,train_loss,val_ter_pct,epoch_seconds
+1,3.347139916046947,327.4914089347079,585.4195206165314
