@@ -83,33 +83,22 @@ def login_required(view):
 
 
 # ---- auth -----------------------------------------------------------------
+# Login disabled - direct access to all pages
 
-@app.route("/", methods=["GET", "POST"])
+@app.route("/")
 def login():
-    if session.get("user"):
-        return redirect(url_for("dashboard"))
-    error = None
-    if request.method == "POST":
-        u = (request.form.get("username") or "").strip()
-        p = request.form.get("password") or ""
-        if store.check_password(u, p):
-            session["user"] = u
-            nxt = request.args.get("next") or url_for("dashboard")
-            return redirect(nxt)
-        error = "Invalid username or password."
-    return render_template("login.html", error=error)
+    return redirect(url_for("dashboard"))
 
 
 @app.route("/logout")
 def logout():
     session.pop("user", None)
-    return redirect(url_for("login"))
+    return redirect(url_for("dashboard"))
 
 
 # ---- pages ----------------------------------------------------------------
 
 @app.route("/dashboard")
-@login_required
 def dashboard():
     recent = store.recent_archives(limit=4)
     return render_template(
@@ -121,14 +110,12 @@ def dashboard():
 
 
 @app.route("/api/search-suggest")
-@login_required
 def api_search_suggest():
     q = (request.args.get("q") or "").strip()
     return jsonify({"suggestions": store.suggest(q, limit=6)})
 
 
 @app.route("/archive/<int:archive_id>")
-@login_required
 def archive_detail(archive_id: int):
     a = store.get_archive(archive_id)
     if a is None:
@@ -159,7 +146,6 @@ def archive_detail(archive_id: int):
 
 
 @app.route("/search")
-@login_required
 def search():
     q = (request.args.get("q") or "").strip()
     if q:
@@ -178,13 +164,11 @@ def search():
 
 
 @app.route("/projects")
-@login_required
 def projects():
     return render_template("projects.html", active="projects")
 
 
 @app.route("/projects/transliteration", methods=["GET"])
-@login_required
 def transliteration():
     samples = []
     samples_dir = ROOT / "static" / "samples"
@@ -202,8 +186,10 @@ def transliteration():
 
 
 @app.route("/api/transliterate", methods=["POST"])
-@login_required
 def api_transliterate():
+    import cv2
+    import time
+    
     model_name = (request.form.get("model") or "").strip()
     if model_name not in transliterate.available_models():
         return jsonify({"error": "Select a model."}), 400
@@ -233,7 +219,20 @@ def api_transliterate():
         return jsonify({"error": "Upload an image or pick a sample."}), 400
 
     try:
-        lines = transliterate.run(model_name, str(src_path))
+        lines, stages, metadata = transliterate.run(model_name, str(src_path))
+        
+        # Save preprocessing stage images
+        timestamp = str(int(time.time() * 1000))
+        base_name = Path(src_path).stem
+        stage_urls = {}
+        
+        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        for stage_name, stage_img in stages.items():
+            stage_filename = f"{base_name}_{stage_name}_{timestamp}.png"
+            stage_path = UPLOAD_DIR / stage_filename
+            cv2.imwrite(str(stage_path), stage_img)
+            stage_urls[stage_name] = url_for("static", filename=f"uploads/{stage_filename}")
+            
     except Exception as e:
         app.logger.exception("transliteration failed")
         return jsonify({"error": f"Inference failed: {e}"}), 500
@@ -244,11 +243,12 @@ def api_transliterate():
         "model": model_name,
         "lines": lines,
         "text": text,
+        "stages": stage_urls,
+        "metadata": metadata,
     })
 
 
 @app.route("/gallery")
-@login_required
 def gallery():
     items = []
     if GALLERY_DIR.is_dir():
@@ -260,20 +260,17 @@ def gallery():
 
 
 @app.route("/about")
-@login_required
 def about():
     return render_template("about.html", active="about")
 
 
 @app.route("/contact")
-@login_required
 def contact():
     sent = request.args.get("sent") == "1"
     return render_template("contact.html", active="contact", sent=sent)
 
 
 @app.route("/contact", methods=["POST"])
-@login_required
 def contact_submit():
     name = (request.form.get("name") or "").strip()
     email = (request.form.get("email") or "").strip()

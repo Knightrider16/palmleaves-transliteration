@@ -699,7 +699,7 @@ def train_model(labeled_dir, model_path, label_map_path,
             print(f"  ✓ Saved best model (val_acc={val_acc:.1f}%)")
 
     # ---- Test ----
-    model.load_state_dict(torch.load(model_path))
+    model.load_state_dict(torch.load(model_path, weights_only=False))
     model.eval()
     test_correct = 0
     with torch.no_grad():
@@ -728,7 +728,8 @@ def load_model(model_path, label_map_path):
     idx_to_label = {v: k for k, v in label_map.items()}
     model = PalmLeafCNN(len(label_map))
     model.load_state_dict(torch.load(model_path,
-                                      map_location='cpu'))
+                                      map_location='cpu',
+                                      weights_only=False))
     model.eval()
     return model, idx_to_label
 

@@ -1,4 +1,37 @@
 {% extends 'base.html' %}
+
+{% block head %}
+<style>
+  .stage-card {
+    background: #f9f9f9;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+  }
+  .stage-card h4 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    color: #333;
+    font-weight: 600;
+  }
+  .stage-card img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+  .stage-card img:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  .stage-card img:active {
+    transform: scale(0.98);
+  }
+</style>
+{% endblock %}
+
 {% block content %}
   <h1 class="page-title">Transliteration Project</h1>
   <p class="page-sub">Upload an image of a palm-leaf manuscript (Malayanma script) to get a transliteration.</p>
@@ -37,11 +70,17 @@
             No trained models found under <code>models/&lt;arch&gt;/best.pth</code>.
           </div>
         {% endif %}
-        <button class="primary" id="run-btn" type="button" disabled>Run Model</button>
+
+        <button class="primary" id="run-btn" type="button" disabled style="margin-top: 20px;">Run Model</button>
 
         <div style="margin-top: 14px; font-size:12px; color:var(--muted);">
           <strong>Tip:</strong> the <code>cnn_ctc</code> model was the strongest performer
           on the project's benchmark.
+        </div>
+        
+        <div style="margin-top: 14px; font-size:12px; color:var(--muted);">
+          <strong>Preprocessing:</strong> Full pipeline automatically applied<br>
+          (CLAHE → Real-ESRGAN 2x → Sharpen → Binary → Denoise)
         </div>
 
         <div id="status-box" style="margin-top: 14px; font-size: 13px; color: var(--ink-soft);"></div>
@@ -56,6 +95,37 @@
         <button class="ghost" id="clear-output" type="button" style="margin-top:8px;">Clear</button>
       </div>
 
+    </div>
+    
+    <!-- Preprocessing Stages -->
+    <div id="stages-container" style="display:none; margin-top: 30px;">
+      <h2>Preprocessing Stages</h2>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 15px;">
+        <div class="stage-card">
+          <h4>1. Original</h4>
+          <img id="stage-original" alt="Original" style="width:100%; border:1px solid #ddd;">
+        </div>
+        <div class="stage-card">
+          <h4>2. CLAHE Enhanced</h4>
+          <img id="stage-clahe" alt="CLAHE" style="width:100%; border:1px solid #ddd;">
+        </div>
+        <div class="stage-card">
+          <h4 id="stage-upscaled-title">3. Upscaled</h4>
+          <img id="stage-upscaled" alt="Upscaled" style="width:100%; border:1px solid #ddd;">
+        </div>
+        <div class="stage-card">
+          <h4>4. Sharpened</h4>
+          <img id="stage-sharpened" alt="Sharpened" style="width:100%; border:1px solid #ddd;">
+        </div>
+        <div class="stage-card">
+          <h4>5. Binary Mask</h4>
+          <img id="stage-binary" alt="Binary" style="width:100%; border:1px solid #ddd;">
+        </div>
+        <div class="stage-card">
+          <h4>6. Cleaned (Final)</h4>
+          <img id="stage-cleaned" alt="Cleaned" style="width:100%; border:1px solid #ddd;">
+        </div>
+      </div>
     </div>
   </div>
 
@@ -80,6 +150,8 @@
       {% endif %}
     </div>
   </div>
+
+
 
 {% endblock %}
 
@@ -155,6 +227,7 @@
   clearOut.addEventListener('click', () => {
     output.classList.add('muted');
     output.textContent = 'Cleared. Upload a manuscript image and choose a model.';
+    stagesContainer.style.display = 'none';
   });
 
   // Sample selection
@@ -184,12 +257,15 @@
   });
 
   // Run
+  const stagesContainer = $('stages-container');
+  
   runBtn.addEventListener('click', async () => {
     if (runBtn.disabled) return;
     runBtn.disabled = true;
-    status.innerHTML = '<span class="spinner"></span>Running model — this can take a few seconds…';
+    status.innerHTML = '<span class="spinner"></span>Running preprocessing and model — this may take 10-15 seconds…';
     output.classList.add('muted', 'loading');
     output.innerHTML = '<span class="spinner"></span> Working…';
+    stagesContainer.style.display = 'none';
 
     const fd = new FormData();
     fd.append('model', modelSel.value);
@@ -203,15 +279,34 @@
       if (!res.ok) {
         output.textContent = data.error || 'Inference failed.';
         status.textContent = 'Failed.';
+        stagesContainer.style.display = 'none';
       } else {
         output.classList.remove('muted');
         output.textContent = data.text || '(no characters detected)';
-        status.textContent = `Model: ${data.model} · ${data.lines.length} line(s)`;
+        status.textContent = `Model: ${data.model} · ${data.lines.length} line(s) detected`;
+        
+        // Display preprocessing stages
+        if (data.stages) {
+          $('stage-original').src = data.stages.original || '';
+          $('stage-clahe').src = data.stages.clahe || '';
+          $('stage-upscaled').src = data.stages.upscaled || '';
+          $('stage-sharpened').src = data.stages.sharpened || '';
+          $('stage-binary').src = data.stages.binary || '';
+          $('stage-cleaned').src = data.stages.cleaned || '';
+          
+          // Update upscaling title based on actual method used
+          if (data.metadata && data.metadata.upscale_method) {
+            $('stage-upscaled-title').textContent = '3. Upscaled (' + data.metadata.upscale_method + ')';
+          }
+          
+          stagesContainer.style.display = 'block';
+        }
       }
     } catch (e) {
       output.classList.remove('loading');
       output.textContent = 'Request failed: ' + e;
       status.textContent = 'Network error.';
+      stagesContainer.style.display = 'none';
     } finally {
       refreshRun();
     }
@@ -219,5 +314,264 @@
 
   refreshRun();
 })();
+
+// ===== Image Popup Window =====
+function openImageInNewWindow(imgSrc, title) {
+  if (!imgSrc || imgSrc === '' || imgSrc.endsWith('undefined')) {
+    return; // Don't open if no valid image
+  }
+  
+  // Open image in a new popup window
+  const width = Math.min(1200, screen.width * 0.9);
+  const height = Math.min(900, screen.height * 0.9);
+  const left = (screen.width - width) / 2;
+  const top = (screen.height - height) / 2;
+  
+  const popup = window.open(
+    '',
+    title,
+    `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,toolbar=no,menubar=no,location=no,status=no`
+  );
+  
+  if (popup) {
+    popup.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${title}</title>
+        <style>
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          body {
+            background: #1e1e1e;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+          }
+          .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(30, 30, 30, 0.95);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            border-bottom: 1px solid #444;
+          }
+          h1 {
+            color: #fff;
+            font-size: 18px;
+            font-weight: 600;
+          }
+          .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+          }
+          button {
+            background: #444;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+          }
+          button:hover {
+            background: #555;
+          }
+          .zoom-level {
+            color: #aaa;
+            font-size: 14px;
+            min-width: 60px;
+            text-align: center;
+          }
+          .container {
+            position: fixed;
+            top: 60px;
+            left: 0;
+            right: 0;
+            bottom: 40px;
+            overflow: auto;
+            cursor: grab;
+          }
+          .container.grabbing {
+            cursor: grabbing;
+          }
+          .image-wrapper {
+            display: inline-block;
+            min-width: 100%;
+            min-height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          img {
+            display: block;
+            transition: transform 0.1s ease-out;
+            transform-origin: 0 0;
+            user-select: none;
+            -webkit-user-drag: none;
+          }
+          .footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(30, 30, 30, 0.95);
+            padding: 10px 20px;
+            text-align: center;
+            border-top: 1px solid #444;
+          }
+          .info {
+            color: #888;
+            font-size: 13px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>${title}</h1>
+          <div class="controls">
+            <button onclick="zoomOut()">−</button>
+            <span class="zoom-level" id="zoom-level">100%</span>
+            <button onclick="zoomIn()">+</button>
+            <button onclick="resetZoom()">Reset</button>
+          </div>
+        </div>
+        <div class="container" id="container">
+          <div class="image-wrapper">
+            <img id="image" src="${imgSrc}" alt="${title}">
+          </div>
+        </div>
+        <div class="footer">
+          <div class="info">Mouse wheel to zoom | Click and drag to pan | Zoom centers on cursor</div>
+        </div>
+        <script>
+          let scale = 1;
+          let panning = false;
+          let pointX = 0;
+          let pointY = 0;
+          let start = { x: 0, y: 0 };
+          
+          const img = document.getElementById('image');
+          const container = document.getElementById('container');
+          const zoomLevel = document.getElementById('zoom-level');
+          
+          function setTransform() {
+            img.style.transform = 'translate(' + pointX + 'px, ' + pointY + 'px) scale(' + scale + ')';
+          }
+          
+          function updateZoomLevel() {
+            zoomLevel.textContent = Math.round(scale * 100) + '%';
+          }
+          
+          function zoomIn() {
+            scale = Math.min(scale * 1.2, 10);
+            setTransform();
+            updateZoomLevel();
+          }
+          
+          function zoomOut() {
+            scale = Math.max(scale / 1.2, 0.1);
+            setTransform();
+            updateZoomLevel();
+          }
+          
+          function resetZoom() {
+            scale = 1;
+            pointX = 0;
+            pointY = 0;
+            setTransform();
+            updateZoomLevel();
+          }
+          
+          // Mouse wheel zoom (centered on cursor)
+          container.addEventListener('wheel', function(e) {
+            e.preventDefault();
+            
+            const xs = (e.clientX - pointX) / scale;
+            const ys = (e.clientY - pointY) / scale;
+            
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            scale = Math.max(0.1, Math.min(10, scale * delta));
+            
+            pointX = e.clientX - xs * scale;
+            pointY = e.clientY - ys * scale;
+            
+            setTransform();
+            updateZoomLevel();
+          }, { passive: false });
+          
+          // Pan with mouse drag
+          container.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            start = { x: e.clientX - pointX, y: e.clientY - pointY };
+            panning = true;
+            container.classList.add('grabbing');
+          });
+          
+          container.addEventListener('mouseup', function() {
+            panning = false;
+            container.classList.remove('grabbing');
+          });
+          
+          container.addEventListener('mousemove', function(e) {
+            if (!panning) return;
+            pointX = e.clientX - start.x;
+            pointY = e.clientY - start.y;
+            setTransform();
+          });
+          
+          // Prevent image dragging
+          img.addEventListener('dragstart', function(e) {
+            e.preventDefault();
+          });
+          
+          // Initial setup
+          updateZoomLevel();
+        <\/script>
+      </body>
+      </html>
+    `);
+    popup.document.close();
+  }
+}
+
+// Add click handlers to all stage images
+document.addEventListener('DOMContentLoaded', () => {
+  const stageImages = [
+    { id: 'stage-original', title: '1. Original Image' },
+    { id: 'stage-clahe', title: '2. CLAHE Enhanced' },
+    { id: 'stage-upscaled', titleElementId: 'stage-upscaled-title' },
+    { id: 'stage-sharpened', title: '4. Sharpened' },
+    { id: 'stage-binary', title: '5. Binary Mask' },
+    { id: 'stage-cleaned', title: '6. Cleaned (Final)' }
+  ];
+  
+  stageImages.forEach(stage => {
+    const img = document.getElementById(stage.id);
+    if (img) {
+      img.addEventListener('click', () => {
+        if (img.src && img.src !== '' && img.complete && img.naturalWidth > 0) {
+          // Get title from element if titleElementId is specified, otherwise use static title
+          const title = stage.titleElementId 
+            ? document.getElementById(stage.titleElementId)?.textContent || stage.title || 'Image'
+            : stage.title;
+          openImageInNewWindow(img.src, title);
+        }
+      });
+      img.title = 'Click to open in new window with zoom';
+      img.style.cursor = 'pointer';
+    }
+  });
+});
 </script>
 {% endblock %}

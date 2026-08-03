@@ -28,7 +28,7 @@ benchmark/amadi/
 benchmark/icfhr2018/
 Transcribed documents/
 *.pdf
-
+/paper
 # Pipeline / training intermediates
 RUN_STATE.json
 cluster_assignments*.csv

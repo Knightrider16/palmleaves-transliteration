@@ -1,59 +1,69 @@
 {% extends 'base.html' %}
 {% block content %}
   <div class="hero">
+    <video class="hero-video" autoplay muted loop playsinline>
+      <source src="{{ url_for('static', filename='welcome-video.mp4') }}" type="video/mp4">
+      <source src="{{ url_for('static', filename='welcome-video.webm') }}" type="video/webm">
+    </video>
+    <div class="hero-overlay"></div>
     <div class="hero-text">
-      <span class="ornament">❦</span>
       <h1 class="page-title">Welcome, {{ session.user|capitalize }}</h1>
       <p class="page-sub">Explore, discover and contribute to our archival heritage.</p>
     </div>
-    <div class="hero-leaf" aria-hidden="true">📜</div>
+    {% if stats %}
+      <div class="stat-band">
+        <div class="stat">
+          <div class="stat-num">{{ stats.total }}</div>
+          <div class="stat-label">Records</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">{{ stats.available }}</div>
+          <div class="stat-label">Available</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">{% if stats.year_min %}{{ stats.year_min }}–{{ stats.year_max }}{% else %}—{% endif %}</div>
+          <div class="stat-label">Year range</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">{{ stats.messages }}</div>
+          <div class="stat-label">Messages</div>
+        </div>
+      </div>
+    {% endif %}
   </div>
 
-  {% if stats %}
-    <div class="stat-band">
-      <div class="stat">
-        <div class="stat-num">{{ stats.total }}</div>
-        <div class="stat-label">Records</div>
-      </div>
-      <div class="stat">
-        <div class="stat-num">{{ stats.available }}</div>
-        <div class="stat-label">Available</div>
-      </div>
-      <div class="stat">
-        <div class="stat-num">{% if stats.year_min %}{{ stats.year_min }}–{{ stats.year_max }}{% else %}—{% endif %}</div>
-        <div class="stat-label">Year range</div>
-      </div>
-      <div class="stat">
-        <div class="stat-num">{{ stats.messages }}</div>
-        <div class="stat-label">Messages</div>
-      </div>
-    </div>
-  {% endif %}
-
   <div class="tiles">
-    <a class="tile" href="{{ url_for('search') }}">
-      <div class="icon">🔍</div>
-      <h3>Search Archives</h3>
-      <p>Search documents in the archives.</p>
-      <div class="go">Go to Search →</div>
+    <a class="tile" href="{{ url_for('search') }}" style="background-image: url('{{ url_for('static', filename='tiles/search.webp') }}');">
+      <div class="tile-overlay"></div>
+      <div class="tile-content">
+        <h3>Search Archives</h3>
+        <p>Search documents in the archives.</p>
+        <div class="go">Go to Search →</div>
+      </div>
     </a>
-    <a class="tile" href="{{ url_for('projects') }}">
-      <div class="icon">📁</div>
-      <h3>Projects</h3>
-      <p>View and access ongoing projects.</p>
-      <div class="go">Go to Projects →</div>
+    <a class="tile" href="{{ url_for('projects') }}" style="background-image: url('{{ url_for('static', filename='tiles/projects.webp') }}');">
+      <div class="tile-overlay"></div>
+      <div class="tile-content">
+        <h3>Projects</h3>
+        <p>View and access ongoing projects.</p>
+        <div class="go">Go to Projects →</div>
+      </div>
     </a>
-    <a class="tile" href="{{ url_for('gallery') }}">
-      <div class="icon">🖼️</div>
-      <h3>Gallery</h3>
-      <p>Explore archive images and collections.</p>
-      <div class="go">View Gallery →</div>
+    <a class="tile" href="{{ url_for('gallery') }}" style="background-image: url('{{ url_for('static', filename='tiles/gallery.jpg') }}');">
+      <div class="tile-overlay"></div>
+      <div class="tile-content">
+        <h3>Gallery</h3>
+        <p>Explore archive images and collections.</p>
+        <div class="go">View Gallery →</div>
+      </div>
     </a>
-    <a class="tile" href="{{ url_for('about') }}">
-      <div class="icon">ⓘ</div>
-      <h3>About Us</h3>
-      <p>Learn more about the archives and portal.</p>
-      <div class="go">Learn More →</div>
+    <a class="tile" href="{{ url_for('about') }}" style="background-image: url('{{ url_for('static', filename='tiles/about.jpg') }}');">
+      <div class="tile-overlay"></div>
+      <div class="tile-content">
+        <h3>About Us</h3>
+        <p>Learn more about the archives and portal.</p>
+        <div class="go">Learn More →</div>
+      </div>
     </a>
   </div>
 
@@ -63,9 +73,9 @@
   </div>
   <div class="recent-grid">
     {% for r in recent %}
-      <a class="recent-card" href="{{ url_for('search', q=r.title.split(' ')[0]) }}">
+      <a class="recent-card" href="{{ url_for('search', q=r.title.split(' ')|first) }}">
         <div class="thumb"
-             style="background-image: url('{{ url_for('static', filename='samples/sample' ~ ((loop.index0 % 4) + 1) ~ '.png') }}');">
+            style="background-image: url('{{ url_for('static', filename='samples/sample' ~ ((loop.index0 % 4) + 1) ~ '.png') }}');">
           <div class="thumb-overlay"></div>
         </div>
         <div class="meta">

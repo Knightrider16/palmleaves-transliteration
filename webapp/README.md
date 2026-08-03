@@ -41,11 +41,15 @@ Default seeded credentials:
 
 - `webapp/transliterate.py` discovers any `models/<arch>/best.pth`
   checkpoint and exposes its name in the dropdown.
-- On submit, the uploaded image is read with OpenCV. If it isn't
-  already a binary mask we run a single-image preprocess (CLAHE +
-  adaptive threshold + connected-components cleanup) — same as
-  `preprocessing_scripts/batch_mask_clean.py` but per-image, without
-  the slow Real-ESRGAN upscale step.
+- On submit, the uploaded image is read with OpenCV and preprocessed
+  using the new configurable preprocessing pipeline:
+  - **Preprocessing Levels** (selectable in UI):
+    - `none`: No preprocessing (raw image)
+    - `light`: CLAHE contrast enhancement only
+    - `standard`: CLAHE + adaptive threshold + light noise removal ⭐ (default)
+    - `heavy`: CLAHE + adaptive threshold + aggressive noise removal
+  - **Real-ESRGAN Upscaling**: 2x super-resolution using Real-ESRGAN (matches offline pipeline)
+  - Implementation in `webapp/preprocess.py`
 - Lines are split using the project's
   `crnn.extract_lines.split_lines_by_peaks`.
 - Each line is transliterated by the chosen architecture
@@ -55,6 +59,52 @@ Default seeded credentials:
 
 The first run of a model takes a few seconds (checkpoint load).
 Subsequent calls reuse the cached `nn.Module`.
+
+### Preprocessing Module
+
+The `webapp/preprocess.py` module provides a **full automatic preprocessing pipeline** that runs on every transliteration:
+
+**Pipeline Stages:**
+1. **Original** - Input grayscale image
+2. **CLAHE Enhanced** - Contrast Limited Adaptive Histogram Equalization
+3. **Upscaled** - 2x Real-ESRGAN super-resolution (same as offline batch_upscale.py)
+4. **Sharpened** - CLAHE + sharpening kernel for edge enhancement
+5. **Binary Mask** - Adaptive threshold to create white-on-black text
+6. **Cleaned** - Noise removal + morphological operations (final result)
+
+The pipeline automatically runs when you click "Run Model" and displays all intermediate stages in the UI.
+
+- **Memory-efficient:** Works on 512MB free hosting tiers
+- **Processing time:** ~5-15 seconds total (preprocessing + transliteration)
+- **Automatic:** No user configuration needed - full pipeline always applied
+
+### API Usage
+
+The `/api/transliterate` endpoint automatically runs the full preprocessing pipeline:
+
+```javascript
+POST /api/transliterate
+FormData:
+  - model: "cnn_ctc"    // required
+  - image: <file>       // required (or sample)
+  - sample: "name.jpg"  // optional: sample filename
+
+Response:
+{
+  "image_url": "/static/uploads/...",
+  "model": "cnn_ctc",
+  "lines": [...],
+  "text": "transliterated text",
+  "stages": {
+    "original": "/static/uploads/...original.png",
+    "clahe": "/static/uploads/...clahe.png",
+    "upscaled": "/static/uploads/...upscaled.png",
+    "sharpened": "/static/uploads/...sharpened.png",
+    "binary": "/static/uploads/...binary.png",
+    "cleaned": "/static/uploads/...cleaned.png"
+  }
+}
+```
 
 ## Adding samples / gallery items
 

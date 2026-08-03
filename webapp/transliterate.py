@@ -17,6 +17,7 @@ import torch
 
 from crnn.extract_lines import split_lines_by_peaks
 from crnn.infer import _line_to_tensor, _load_model
+from . import preprocess
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 MODELS_DIR = PROJECT_ROOT / "models"
@@ -112,10 +113,19 @@ def _split_lines(mask: np.ndarray) -> list[np.ndarray]:
 # ---- public entry point ---------------------------------------------------
 
 @torch.no_grad()
-def run(arch: str, image_path: str) -> list[list[str]]:
+def run(arch: str, image_path: str) -> tuple[list[list[str]], dict[str, np.ndarray], dict[str, str]]:
     """
-    Read `image_path`, preprocess if necessary, segment into lines, and
-    transliterate each line. Returns a list of per-line token lists.
+    Read `image_path`, run full preprocessing pipeline, segment into lines, and
+    transliterate each line. Returns per-line token lists and preprocessing stages.
+    
+    Args:
+        arch: Model architecture name
+        image_path: Path to input image
+    
+    Returns:
+        Tuple of (lines, stages) where:
+        - lines: List of per-line token lists
+        - stages: Dictionary of preprocessing stage images
     """
     raw = cv2.imread(image_path)
     if raw is None:
@@ -125,14 +135,13 @@ def run(arch: str, image_path: str) -> list[list[str]]:
             raise ValueError(f"Could not read image: {image_path}")
         raw = raw_gray
 
-    if raw.ndim == 2 and _looks_like_mask(raw):
-        mask = raw
-    else:
-        mask = _to_clean_mask(raw)
+    # Run full preprocessing pipeline and get all stages
+    stages, metadata = preprocess.full_pipeline_with_stages(raw)
+    mask = stages['cleaned']
 
     crops = _split_lines(mask)
     if not crops:
-        return []
+        return [], stages, metadata
 
     model, vocab = _get_model(arch)
     out: list[list[str]] = []
@@ -141,4 +150,4 @@ def run(arch: str, image_path: str) -> list[list[str]]:
         pred = model(x)
         tokens = model.decode(pred)[0]
         out.append(tokens)
-    return out
+    return out, stages, metadata

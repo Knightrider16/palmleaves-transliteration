@@ -35,7 +35,7 @@ from .vocab         import Vocab
 
 
 def _load_model(model_path: str, device: torch.device, arch: str | None = None):
-    ckpt = torch.load(model_path, map_location=device)
+    ckpt = torch.load(model_path, map_location=device, weights_only=False)
     vocab = Vocab(ckpt["vocab"])
     # train_v2 saves the state under "model_state"; older format used
     # "state_dict"
