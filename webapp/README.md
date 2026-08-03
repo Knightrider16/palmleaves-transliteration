@@ -41,15 +41,13 @@ Default seeded credentials:
 
 - `webapp/transliterate.py` discovers any `models/<arch>/best.pth`
   checkpoint and exposes its name in the dropdown.
-- On submit, the uploaded image is read with OpenCV and preprocessed
-  using the new configurable preprocessing pipeline:
-  - **Preprocessing Levels** (selectable in UI):
-    - `none`: No preprocessing (raw image)
-    - `light`: CLAHE contrast enhancement only
-    - `standard`: CLAHE + adaptive threshold + light noise removal ⭐ (default)
-    - `heavy`: CLAHE + adaptive threshold + aggressive noise removal
-  - **Real-ESRGAN Upscaling**: 2x super-resolution using Real-ESRGAN (matches offline pipeline)
-  - Implementation in `webapp/preprocess.py`
+- On submit, the uploaded image is read with OpenCV and always run
+  through the full automatic preprocessing pipeline in
+  `webapp/preprocess.py` (see below) — there is no user-selectable
+  preprocessing level; the pipeline mirrors the offline
+  `preprocess_pipeline.py` end to end, including Real-ESRGAN, and
+  falls back to bicubic upscaling if the Real-ESRGAN weights aren't
+  available in the deployment environment.
 - Lines are split using the project's
   `crnn.extract_lines.split_lines_by_peaks`.
 - Each line is transliterated by the chosen architecture
@@ -137,3 +135,13 @@ when the tables are empty. Delete the file to reseed.
 - The Gallery page currently just lists all files in
   `webapp/static/gallery/`. Adding pagination / metadata is a
   straightforward extension of `app.gallery()`.
+
+## Deploying
+
+The repo is configured for [Render](https://render.com) (`render.yaml`,
+`Procfile`, `runtime.txt`, `requirements.txt` at the repo root). See the
+**Deployment** section of the top-level [`README.md`](../README.md) for
+the condensed steps and free-tier memory tips (Render's free tier is
+512MB RAM, which does not comfortably fit all six model checkpoints —
+trim `webapp/transliterate.py`'s `PREFERRED_ORDER` and only ship the
+checkpoints you keep).

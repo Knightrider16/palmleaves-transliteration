@@ -4,8 +4,8 @@ Test script for webapp preprocessing module.
 This script tests the preprocessing functions to ensure they work correctly
 before deployment.
 
-Run:
-    python test_preprocessing.py
+Run (from repo root):
+    python -m tests.test_preprocessing
 """
 import cv2
 import numpy as np
